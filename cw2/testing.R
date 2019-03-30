@@ -46,3 +46,20 @@ myhessian <- function(param, Y) {
 }
 
 myhess <- myhessian(opt$par, Y = c(256, 237))
+
+# Q2.3
+N <- opt$par[1]
+theta <- opt$par[2]
+Y <- c(256, 237)
+L0 <- negloglike(opt$par, Y)
+L1 <- digamma(N-Y[1]+1) / gamma(N-Y[1]+1) 
+       + digamma(N-Y[2]+1) / gamma(N-Y[2]+1)
+       - 2*digamma(N+1) / gamma(N+1)
+       + 2*log(1+exp(theta))
+L4 <- abs(sum(psigamma(N-Y+1,3)) - 2*psigamma(N+1,3))
+
+e <- .Machine$double.eps
+h <- 0.0001
+bound <- e*(4*L0+2*abs(theta)*L1) / h^2
+         + (L4*h^2) / 12
+
