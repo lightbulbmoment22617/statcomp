@@ -1,0 +1,23 @@
+{
+    "collab_server" : "",
+    "contents" : "",
+    "created" : 1547622845033.000,
+    "dirty" : false,
+    "encoding" : "UTF-8",
+    "folds" : "",
+    "hash" : "3329239580",
+    "id" : "3BEFF452",
+    "lastKnownWriteTime" : 1547635000,
+    "last_content_update" : 1547635000013,
+    "path" : "~/StatComp/lab_1.R",
+    "project_path" : "lab_1.R",
+    "properties" : {
+        "cursorPosition" : "26,0",
+        "scrollLine" : "13",
+        "tempName" : "Untitled1"
+    },
+    "relative_order" : 1,
+    "source_on_save" : false,
+    "source_window" : "",
+    "type" : "r_source"
+}

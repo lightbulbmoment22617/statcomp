@@ -1,0 +1,15 @@
+---
+title: Statistical Computing, Coursework A
+author: Anonymous
+output: pdf_document
+---
+
+```{r echo=FALSE}
+# Uncomment to include any predefined code supplied with the coursework:
+# source("CWAcode.R")
+```
+
+Question 1
+----
+
+Your answer goes here.

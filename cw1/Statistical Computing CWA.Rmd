@@ -1,0 +1,429 @@
+---
+title: Statistical Computing - CWA - 2019
+author: Sharan Maiya (S1608480)
+output:
+  pdf_document:
+    includes:
+      in_header: header.tex
+---
+```{r, results='hide', warning=FALSE}
+# Sources, libraries and imported data
+source('CWA2019code.R')
+library(knitr);library(ggplot2);library(RColorBrewer);library(tidyverse);library(pander)
+TMINallobs <- read.csv("TMINallobs.csv", header=TRUE, stringsAsFactors=FALSE)
+TMINalltest <- read.csv("TMINalltest.csv", header=TRUE, stringsAsFactors=FALSE)
+TMINoneobs <- read.csv("TMINoneobs.csv", header=TRUE, stringsAsFactors=FALSE)
+TMINonetest <- read.csv("TMINonetest.csv", header=TRUE, stringsAsFactors=FALSE)
+```
+
+```{r, include=FALSE}
+my_theme <- function() {
+      
+# Generate the colors for the chart procedurally with RColorBrewer
+
+palette <- brewer.pal("Greys", n=9)
+color.background = palette[2]
+color.grid.major = palette[3]
+color.axis.text = palette[6]
+color.axis.title = palette[7]
+color.title = palette[9]
+      
+# Begin construction of chart
+
+theme_bw(base_size=9) +
+        
+# Set the entire chart region to a light gray color
+
+theme(panel.background=element_rect(fill=color.background, color=color.background)) +
+theme(plot.background=element_rect(fill=color.background, color=color.background)) +
+theme(panel.border=element_rect(color=color.background)) +
+      
+# Format the grid
+
+theme(panel.grid.major=element_line(color=color.grid.major,size=.25)) +
+theme(panel.grid.minor=element_blank()) +
+theme(axis.ticks=element_blank()) +
+      
+# Format the legend, but hide by default
+
+theme(legend.position="none") +
+theme(legend.background = element_rect(fill=color.background)) +
+theme(legend.text = element_text(size=7,color=color.axis.title)) +
+      
+# Set title and axis labels, and format these and tick marks
+
+theme(plot.title=element_text(color=color.title, size=10, vjust=1.25, hjust=0.5)) +
+theme(axis.text.x=element_text(size=10,color=color.axis.text)) +
+theme(axis.text.y=element_text(size=10,color=color.axis.text)) +
+theme(axis.title.x=element_text(size=10,color=color.axis.title, vjust=0)) +
+theme(axis.title.y=element_text(size=10,color=color.axis.title, vjust=1.25)) +
+      
+# Plot margins
+
+theme(plot.margin = unit(c(0.35, 0.2, 0.3, 0.35), "cm"))
+}
+```
+
+
+## Initial plotting of the data
+
+We first plot the data first for station UKE00105875 and for and all stations just to visualise and get a feel for it before carrying out further analysis.
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+```{r, fig.height=2.5, fig.align="center", fig.show='hold'}
+# Single station:
+station <- TMINallobs %>% filter(ID == "UKE00105875")
+ggplot(data = station,
+  aes(x=DecYear, y=Value)) +
+  geom_point(alpha=0.075) +
+  scale_x_continuous(breaks = pretty(station$DecYear, n = 10)) +
+  my_theme() + # Pre-defined theme I made
+  labs(x="Year", y="Temperature", title="Station UKE00105875")
+# All stations:
+ggplot(data = TMINallobs,
+  aes(DecYear, Value, col = ID)) +
+  geom_point(alpha=0.1) +
+  scale_x_continuous(breaks = pretty(station$DecYear, n = 10)) +
+  my_theme() + 
+  labs(x="Year", y="Temperature", title="All Stations")
+```
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+From the above graphs we get an inclination that the temperature trend is roughly periodic from year to year. This is because we can see repeated peaks and troughs. If we then look at the median temperature of each year (roughly between the peak and trough) we can see a gradual increase since 1960 - this is particularly apparent when looking at the plot for all stations. This makes sense when considering the effects of global warming. We can also see some outliers in our data: in particular around 1982 we see some abnormally low temperatures and again around 1996 and in 2010/11. We want to keep these in mind when building our models as we do not want to overfit i.e. we do not want to capture the idiosyncrasies of the data we have as this would result in a poor generalisation error. Since we are trying to predict real valued data (temperatures) it makes sense to consider some type of regression.
+
+## Question 1
+
+### Task 1
+
+Below is the R code to create a naive model. This only uses longitude, latitude, elevation and time to try and predict
+the temperature. We do not expect this model to perform particularly well however it will be useful to use as a baseline to compare
+against more complex models. Its parameters are also shown below the code.
+
+&nbsp;
+
+```{r, message=FALSE}
+naive <- lm(Value ~
+              Longitude +
+              Latitude +
+              Elevation +
+              I(DecYear - 2000), data=TMINallobs) # Time is skewed to centre around zero
+
+# Get a summary of the model
+pander(summary(naive), caption="(Above): Parameters of the naive model; 
+       (Below): Statistics about the naive model") 
+```
+
+We can already understand a few things from the information above. We see that the p-values are all very small which indicates that there is a relationship between the parameters we have chosen and our response (temperature). While this is the case, our $R^2$ value is very close to zero. This indicates that our model explains very little of the variance in temperature. When considering the type of model we have used (linear) and the shape of the temperature trend seen in the graphs earlier (non-linear) it seems likely that we have underfit because our model is too simple. 
+
+### Task 2
+
+The code for a function 'prediction()' is given below. It takes as input a dataframe of new data 
+and a linear model. It outputs a new dataframe of distribution parameters for each new observation as well
+as probabilities for freezing temperatures. We assume the distributions are Gaussian.
+
+&nbsp;
+&nbsp;
+
+```{r}
+# Use a model to estimate the distribution of each 
+# observation in a new dataset, and use each distribution
+# to find the probability of freezing
+prediction <- function(newdata, fit) {
+  pred <- predict(fit, newdata, se.fit=TRUE)
+  # Prediction standard deviation calculated using
+  # s.d. for both point predictions and residuals
+  msigma <- sqrt(pred$se.fit^2 + sigma(fit)^2)
+  # Distribution is assumed to be Gaussian
+  prob <- pnorm(0, mean=pred$fit, sd = msigma, lower.tail=TRUE)
+  return(data.frame(mu=pred$fit, sigma=msigma, prob))
+}
+```
+
+### Task 3
+
+We compute the Squared Error score and Dawid-Sebastiani score to evaluate the model.
+The results are shown when considering each station individually as well as the overall
+averages.
+
+&nbsp;
+&nbsp;
+
+```{r}
+# Apply the model to our test data
+mpred1 <- prediction(TMINalltest, naive)
+# Score the prediction using the score_se and score_ds functions
+mscore1 <- data.frame(ID = TMINalltest$ID,
+                     SE = score_se(mpred1, TMINalltest$Value),
+                     DS = score_ds(mpred1, TMINalltest$Value))
+# Create a dataframe of the results for each station
+meanscore1 <- mean_score(mscore1, by.ID = TRUE)
+# And the overall scores
+allscore1 <- mean_score(mscore1, by.ID = FALSE)
+
+# Display the results
+pander(meanscore1[,-4], caption="Average scores for each station")
+pander(allscore1[,-3], caption="Overall average scores")
+```
+
+&nbsp;
+
+These figures carry little meaning currently as we have nothing to compare them against. However the SE score is quite easy to interpret and it is obvious that an error of around 20 is quite poor (we also see that one particular SE is a fair bit higher than the others - this will be discussed later). The DS scores all around 4 are also difficult to interpret without another model to compare against. However it is safe to assume given the simple model we have chosen and the low $R^2$ that these are poor results. We now have a baseline model to compare more complex models against in order to evaluate their performance.
+
+## Question 2
+
+### Task 1
+
+From the first graphs we plotted we noticed that seasonal oscillation seems to be relatively periodic. With this in mind we might consider modelling this oscillation using a truncated Fourier Series. A Fourier Series has the form
+
+\begin{equation}
+    \frac{a_0}{2} + \sum_{n=1}^{m}{a_n \cos{\frac{n\pi x}{L}}} + {b_n \sin{\frac{n\pi x}{L}}}.
+\end{equation}
+
+When we create our new regression model the constant term $\frac{a_0}{2}$ can be absorbed into the intercept parameter. Additionally, the constants $a_n$ and $b_n$ will be accounted for by the $\beta_i$ coefficients. By then scaling the period of the year for simplicity's sake, our Fourier Series will be reduced to the form
+
+\begin{equation}
+    \sum_{n=1}^{m}{\cos{2n\pi x}} + {\sin{2n\pi x}}.
+\end{equation}
+
+The order of the Fourier Series is represented by $m$ i.e. a truncated Fourier Series of order 2 is given by
+\begin{equation}
+    \sum_{n=1}^{2}{\cos{2n\pi x}} + {b_n \sin{2n\pi x}}
+    = \cos(2\pi x) + \sin(2\pi x) + \cos(2\pi x*2) + \sin(2\pi x*2)
+\end{equation}
+The function we are trying to approximate (our $x$ variable) models the *DecYear* variable since we are trying to model the seasonal oscillation in temperature. Our truncated Fourier Series of order 2 is given by
+\begin{equation}
+    \begin{split}
+    &=\cos(2\pi \text{DecYear}) + \sin(2\pi \text{DecYear}) + \cos(2\pi\text{DecYear}*2) + \sin(2\pi\text{DecYear}*2) \\
+    &=\cos(2\pi \text{DecYear}) + \sin(2\pi \text{DecYear}) + \cos(4\pi\text{DecYear}) + \sin(4\pi\text{DecYear}).
+    \end{split}
+\end{equation}
+By adding higher order terms ($m = 3, 4, ...$) we run the risk of overfitting to our data so we leave the truncated Fourier Series at order 2. If we visualise the predicted data (below) when using a series with terms up to order 2 versus one with terms up to order 3 we see no obvious improvement to the fit of the predictions. This is a good indication that it is not necessary to overcomplicate our model further. 
+
+```{r, echo=FALSE, fig.height=2.5, fig.align="center", warning=FALSE}
+testmodel1 <- lm(Value ~
+             Longitude +
+             Latitude +
+             Elevation +
+             I(DecYear - 2000) +
+             I(cos(2*pi*DecYear)) +
+             I(cos(4*pi*DecYear)) +
+             I(sin(2*pi*DecYear)) +
+             I(sin(4*pi*DecYear)), data=TMINallobs)
+testmodel2 <- lm(Value ~
+             Longitude +
+             Latitude +
+             Elevation +
+             I(DecYear - 2000) +
+             I(cos(2*pi*DecYear)) +
+             I(cos(2*pi*DecYear*2)) +
+             I(sin(2*pi*DecYear)) +
+             I(sin(2*pi*DecYear*2)) +
+             I(cos(2*pi*DecYear*3)) +
+             I(sin(2*pi*DecYear*3)), data=TMINallobs)
+
+predtest1 <- predict(testmodel1, TMINalltest)
+predtest2 <- predict(testmodel2, TMINalltest)
+
+ggplot(data = TMINalltest) + 
+  geom_point(aes(x=DecYear, y=Value), color = "black", alpha=0.2) +
+  geom_point(aes(x=DecYear, y=predtest1), color = "blue", alpha=0.2) +
+  my_theme() +
+  scale_x_continuous(limits = c(1960, 1965), breaks = pretty(TMINalltest$DecYear, n = 56)) +
+  labs(x="Year", y="Temperature", title="Actual (black) vs Predicted (blue): Model with T.F.S up to second order") 
+
+ggplot(data = TMINalltest) + 
+  geom_point(aes(x=DecYear, y=Value), color = "black", alpha=0.2) +
+  geom_point(aes(x=DecYear, y=predtest2), color = "red", alpha=0.2) +
+  my_theme() +
+  scale_x_continuous(limits = c(1960, 1965), breaks = pretty(TMINalltest$DecYear, n = 56)) +
+  labs(x="Year", y="Temperature", title="Actual(black) vs Predicted(red): Model with T.F.S up to third order") 
+```
+
+&nbsp;
+
+Now that we have decided on the complexity of our new model (using the same parameters as before with the addition of a truncated Fourier Series to model seasonal oscillation) the R code to build it is given below. As before, a summary of the model's parameters and some useful statistics are also shown.
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+```{r, message=FALSE}
+sosc <- lm(Value ~
+             Longitude +
+             Latitude +
+             Elevation +
+             I(DecYear - 2000) +
+             I(cos(2*pi*DecYear)) + # T.F.S order 1 term
+             I(cos(4*pi*DecYear)) + # T.F.S order 2 term
+             I(sin(2*pi*DecYear)) + # T.F.S order 1 term
+             I(sin(4*pi*DecYear)), data=TMINallobs) # T.F.S order 2 term
+
+# Get a summary of the model
+pander(summary(sosc), caption="(Previous): Parameters of the 'seasonal_oscillation' model; 
+       (Below): Statistics about the 'seasonal_oscillation' model") 
+```
+
+We immediately see that this model performs better than the naive model built previously. The Std. Errors for each parameter are lower across the board and we see much smaller p-values - some of which are so small R has approximated them to zero. This shows that there is a very clear relationship between the parameters we have picked and our temperature variable. While the Residual Std. Error has also decreased slightly (an improvement) it is more interesting to see the massive improvement in the $R^2$ score from below 0.05 to now ~0.6. We expect to see an increase in the $R^2$ value when adding more parameters to our model but such a large improvement indicates that this new model accounts for much more variance in our temperature data than before. It should still be noted however that this value is not very close to 1, suggesting there is still a lot of room for improvement.
+
+### Task 2
+
+As before we compute the Squared Error and Dawid-Sebastiani scores.
+
+&nbsp;
+
+```{r}
+# Apply the model to our test data
+mpred2 <- prediction(TMINalltest, sosc)
+# Score the prediction using the score_se and score_ds functions
+mscore2 <- data.frame(ID = TMINalltest$ID,
+                     SE = score_se(mpred2, TMINalltest$Value),
+                     DS = score_ds(mpred2, TMINalltest$Value))
+# Create a dataframe of the results - for each station
+meanscore2 <- mean_score(mscore2, by.ID = TRUE)
+# And the overall scores
+allscore2 <- mean_score(mscore2, by.ID = FALSE)
+
+# Display the results
+pander(meanscore2[,-4], caption="Average scores for each station")
+pander(allscore2[,-3], caption="Overall average scores")
+```
+
+When looking at the new SE scores by station we see a significant improvement. In the naive model, these values were all above 20 whereas now they are all below 13. In fact, all except one are below 10; we see that the score for station UKE00105875 is 12.47 which is quite higher than those for other stations. Perhaps there is some other external factor influencing the temperature near this station making it more difficult to predict for e.g. it could be near a busy area in terms of traffic which could slightly increase the average temperature. Investigating this particular station could provide some interesting insights. Returning to the comparison of models, the much lower SE scores in our new model indicate that our incorrect predictions are wrong by a smaller margin than before. However these are not necessarily good scores as the lowest SE score of 8.048 is still large when considering the fact we are predicting temperatures. The DS scores have also all decreased, when before they were ~4.1 we now see values around 3.2. This improvement in perfomance reflects the improvement in SE scores even though it may not seem to be as significant an improvement. This is probably because the DS score takes into account both the mean and variance of the data. The overall average scores make it easy to see the huge improvement in the performance of our new model. The SE score has improved by 58.5% and the DS score by 21.3%. We can confidently say that the new model makes more accurate predictions and will generalise better.
+
+### Task 3
+
+We can see the model coefficients in Table 6 (page 6). The coefficient for the *Elevation* paramater is -0.00765. A negative coefficient implies a decrease in our response as this paramater increases. This makes intuitive sense: we would expect the average temperature to decrease at higher altitudes. The coefficient for the *DecYear* paramater i.e. time is 0.01812. A positive coefficient implies an increase in our response as this paramater increases. Again, this makes intuitive sense as we expect to see the average temperature increase over time due to the effects of global warming. To summarise, these coefficients imply lower temperatures at higher elevations and higher average temperatures from one decade to the next in Scotland.
+
+## Question 3
+
+### Task 1
+
+Below is the code to build a new model for predicting the temperature at station UKE00105875. This model uses temporal trend, the same truncated Fouries Series used to model seasonal oscillation as in the previous model as well as the temperature data for the other five stations in Scotland looked at before.
+
+&nbsp;
+
+```{r}
+single_model <- lm(UKE00105875 ~
+             I(DecYear - 2000) + # Temporal Trend
+             I(cos(2*pi*DecYear)) + # T.F.S
+             I(cos(4*pi*DecYear)) +
+             I(sin(2*pi*DecYear)) +
+             I(sin(4*pi*DecYear)) +
+             UKE00105884 + # Other stations
+             UKE00105886 +
+             UKE00105887 +
+             UKE00105888 +
+             UKE00105930, data=TMINoneobs)
+
+# Display the parameters of the model and some useful statistics
+pander(summary(single_model), caption="(Above): Parameters of the 'single_station' model; 
+       (Below): Statistics about the 'single_station' model")
+```
+
+This model performs very well when compared to the previous two. The Std. Error is less than 0.1 for all parameters which indicates we have very accurate predictions. The p-values are also very low indicating we have found a strong relationship in our model. We also see a Residual Std. Error of only 1.839 which shows that our predictions are usually very close to the actual observations. Our $R^2$ value is also very high at 0.88 which implies that our model accounts for most of the variation in the data. This is promising and suggests that our performance scoring will also be good.
+
+### Task 2
+
+Again we compute the Squared Error and Dawid-Sebastiani scores for this model to compare them with the previous two models we have looked at.
+
+&nbsp;
+
+```{r}
+# Apply the model to our test data
+mpred3 <- prediction(TMINonetest, single_model)
+# Score the prediction using the score_se and score_ds functions
+mscore3 <- data.frame(ID = 'UKE00105875',
+                     SE = score_se(mpred3, TMINonetest$UKE00105875),
+                     DS = score_ds(mpred3, TMINonetest$UKE00105875))
+# Create a dataframe of the results
+meanscore3 <- mean_score(mscore3, by.ID = TRUE)
+
+# Display the results
+pander(meanscore3[,-4], caption="Average scores for station UKE00105875")
+```
+
+Since we are now only considering the temperatures at station UKE00105875 it makes sense to only consider the SE and DS scores for this particular station in our previous models. In our first naive model we saw an SE score of 26.31, indicating that our predictions were usually way off the actual observed temperatures. After then trying to model the seasonal oscillation in temperature we saw a large improvement; an SE score of 12.47 showed that we were much closer to observed values. However when considering the type of data we are trying to predict (temperature data) an error of 12 degrees is still significant. In our new model the SE score is only 3.28; this is a huge improvement as a difference of 3 degrees is not very noticeable when thinking about the real-world consequences of using this model. This drastic improvement is likely to be because we are using the locality of nearby stations to help: the temperature at nearby stations in Scotland is going to be quite close to the temperature we are trying to predict. The fact that our SE score is not lower may be due to the outside influences on temperature which were mentioned before (we saw that this particular station was more difficult to predict for than the others). This improvement in performance is also reflected in our DS score of 2.188. In our naive model this was 4.273 and in our second model it was 3.549. This improvement in score is due to the fact we are making more accurate predictions and are able to account for more of the variance of the data than before, again largely due to the fact we are using the data from other stations to give us a hint of the temperature at station UKE00105875. 
+
+## Question 4
+
+### Task 1
+
+The Brier Score is a negatively oriented score. This means it is a proper score if $S_{B}(F, G) \geqslant S_{B}(G, G)$. We have that
+
+\begin{equation}
+\begin{split}
+    S_{B}(F, G) &= \mathbb{E}_{y \sim G}[ S_{Brier}(F, y) ] \\
+    &= \mathbb{E}_{y \sim G}[[ \mathbb{I}(y\leqslant 0) - F(0)]^2]\\
+    &= \mathbb{E}_{y \sim G}[ \mathbb{I}(y\leqslant 0) - 2\mathbb{I}(y\leqslant 0)F(0) + F(0)^2] \\
+    &= \mathbb{I}(y\leqslant 0) - 2\mathbb{I}(y\leqslant 0)F(0) + F(0)^2 \\
+    &= F(0)^2 - 2\mathbb{I}(y\leqslant 0)F(0) + \mathbb{I}(y\leqslant 0)^2 + \mathbb{I}(y\leqslant 0) - \mathbb{I}(y\leqslant 0)^2 \\
+    &= [F(0) - \mathbb{I}(y\leqslant 0)]^2 + \mathbb{I}(y\leqslant 0)[1 - \mathbb{I}(y\leqslant 0)]. \\
+\end{split}
+\end{equation}
+
+Similarly,
+\begin{equation}
+\begin{split}
+    S_{B}(G, G) &= \mathbb{E}_{y \sim G}[ S_{Brier}(G, y) ] \\
+    &= \mathbb{E}_{y \sim G}[[ \mathbb{I}(y\leqslant 0) - G(0)]^2]\\
+    &= \mathbb{E}_{y \sim G}[ \mathbb{I}(y\leqslant 0) - 2\mathbb{I}(y\leqslant 0)G(0) + G(0)^2] \\
+    &= \mathbb{I}(y\leqslant 0) - 2\mathbb{I}(y\leqslant 0)G(0) + G(0)^2 \\
+    &= G(0)^2 - 2\mathbb{I}(y\leqslant 0)G(0) + \mathbb{I}(y\leqslant 0)^2 + \mathbb{I}(y\leqslant 0) - \mathbb{I}(y\leqslant 0)^2 \\
+    &= [G(0) - \mathbb{I}(y\leqslant 0)]^2 + \mathbb{I}(y\leqslant 0)[1 - \mathbb{I}(y\leqslant 0)]. \\
+\end{split}
+\end{equation}
+
+Equations (1) and (2) are minimised for $F(\cdot) \equiv G(\cdot) = \mathbb{I}(y\leqslant 0)$, therefore the score is proper. In fact,  $S_{B}(F, G) = S_{B}(G, G)$ only when $F(\cdot) = G(\cdot)$ so the Brier Score is strictly proper.
+
+### Task 2
+
+The code for a function 'score_brier()' is given below. It takes a set of predictions 
+and actual values and computes the Brier score for prediction of the indicator of the event
+that the temperature falls below freezing.
+
+&nbsp;
+&nbsp;
+
+```{r}
+score_brier <- function(pred, y) {
+  (I(y<=0)*1-pred$prob)^2
+}
+```
+
+### Task 3
+
+Similarly to before, we now use the score_brier() function to evaluate the performance of each of our three models on predictions for freezing temperatures at station UKE00105875. These scores can be compared to evaluate each model's performance.
+
+&nbsp;
+
+```{r}
+# Create a new dataframe to only store the information for 
+# this particular station
+single_station <- TMINalltest %>% filter(ID == "UKE00105875")
+
+# Predict using the three models we have created
+pred_naive <- prediction(single_station, naive) 
+pred_sosc <- prediction(single_station, sosc)
+pred_one <- prediction(TMINonetest, single_model)
+
+# Compile the results into a dataframe
+scores <- data.frame(ID = "UKE00105875",
+                     BR_Q1 = mean(score_brier(pred_naive, single_station$Value)), # We take the mean to find an overall average score
+                     BR_Q2 = mean(score_brier(pred_sosc, single_station$Value)),
+                     BR_Q3 = mean(score_brier(pred_one, TMINonetest$UKE00105875))) 
+
+# Display the results
+pander(scores, caption="Brier scores for each of the three models")
+```
+
+&nbsp;
+
+We see that our naive model achieved a Brier score of 0.2152. While this is not necessarily a 'good' score it is certainly not terrible. This suggests that while the naive linear model struggles to predict exact temperatures it is able to very loosely model the temperature bracket. In other words it is not terrible at predicting when it will be cold in general. However as soon as we take seasonal oscillation into account as we did in our second model we see that the Brier Score for freezing temperatures improves quite a bit - a value of 0.1414 is close to zero which is an indication of good performance. This is likely because the model's increased complexity now allows it to account for the fact that freezing temperatures are much more common in winter than summer. While the improved score is good it is still not in the category of impressive. Our third model however halves the Brier Score from before, now giving us 0.07233. Since this is lower than 0.1 we can consider it a very good score and an indication that this model is able to predict freezing temperatures very well. This is likely because this model looks at the temperature at nearby stations. Very cold weather tends to affect large areas of the country, hence freezing temperatures at nearby areas are a very strong indication of freezing temperatures at the station we are trying to predict for. Our third model is able to use this knowledge when making predictions which results in much better performance.
