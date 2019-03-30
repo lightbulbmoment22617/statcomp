@@ -63,3 +63,7 @@ h <- 0.0001
 bound <- e*(4*L0+2*abs(theta)*L1) / h^2
          + (L4*h^2) / 12
 
+# Q2.4
+bm <- microbenchmark::microbenchmark(myhessian(opt$par, Y = c(256, 237)),
+                                     optimHess(opt$par, fn = negloglike, Y = c(256, 237)))
+
