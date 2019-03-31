@@ -58,6 +58,29 @@ cvk_do_all <- function(data, splits, formula) {
   S_hat
 }
 
-colMeans(cvk_do_all(TMINallobs,
-                    rep(1:3, nrow(TMINallobs)/3),
-                    Value ~ Elevation))
+colMeans(cvk_do_all(
+  TMINallobs,
+  rep(1:3, nrow(TMINallobs) / 3),
+  Value ~ Elevation
+))
+
+make_formula <- function(max_order) {
+  form <-
+    paste0(
+      "Value ~ Longitude + Latitude",
+      " + Elevation + I(DecYear-Year)"
+    )
+  if (max_order > 0) {
+    form <-
+      paste0(
+        form,
+        paste0(" + I(cos(2*pi*DecYear*", seq_len(max_order), "))",
+          collapse = ""
+        ),
+        paste0(" + I(sin(2*pi*DecYear*", seq_len(max_order), "))",
+          collapse = ""
+        )
+      )
+  }
+  as.formula(form)
+}
