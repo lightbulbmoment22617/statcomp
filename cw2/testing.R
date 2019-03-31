@@ -99,3 +99,40 @@ theta_CI <- theta_hat - quantile(temp[,2] - theta_hat,
                                  probs = c(0.975, 0.025))
 N_CI_2 <- exp(log_N_CI)
 phi_CI <- ilogit(theta_CI)
+
+# Q4.1
+# In k-fold cross-validation we randomly split our data into k subsets
+# of size ~N/k. In Step 1 we generate indices to define this random splitting
+# of our training data.
+#
+# Here we perform k-fold cross-validation on the training data by choosing each
+# of our k subsets as defined in Step 1, training a model using the provided
+# formular on the remaining data and evaluating its performance on this subset.
+# Once we have done this with each of our k subsets we return the k sets of
+# scores we have obtained. These will be the SE, DS and Brier scores.
+#
+# Here we use the same formula we had used before: we train our model on the 
+# entire training dataset and evaluate its performance on the testing set again
+# by taking the SE, DS and Brier score.
+#
+# Here we return the combined corss-validation scores for each of the three
+# scoring rules we have used. We also return the combined standard errors for
+# each of the three scoring rules and finally the scores we obtained when building
+# our model using the regular holdout method in Step 3.
+
+# Q4.2
+TMINdata <- read_TMIN_data("cw2/")
+J <- 20
+S_boot_train <- data.frame(SE = numeric(J),
+                           DS = numeric(J),
+                           Brier = numeric(J))
+S_boot_test <- data.frame(SE = numeric(J),
+                          DS = numeric(J),
+                          Brier = numeric(J))
+
+for (j in 1:J) {
+  boot_data <- data_list_resample(TMINdata)
+  boot_scores <- cwb4_scores(boot_data, 10)
+  S_boot_train[j,] <- boot_scores[1]
+  S_boot_test[j,] <- boot_scores[3]
+}
