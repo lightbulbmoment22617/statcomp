@@ -67,3 +67,23 @@ bound <- e*(4*L0+2*abs(theta)*L1) / h^2
 bm <- microbenchmark::microbenchmark(myhessian(opt$par, Y = c(256, 237)),
                                      optimHess(opt$par, fn = negloglike, Y = c(256, 237)))
 
+# Q3.1
+arch_boot <- function(param, J) {
+  boot_params <- matrix(0, J,2)
+  N <- floor(param[1])
+  phi <- ilogit(param[2])
+  for (j in 1:J) {
+    Y_j <- rbinom(2, N, phi)
+    boot_params[j, ] <- optim(
+      par = c(2*max(Y_j), 0),
+      fn = negloglike,
+      Y = Y_j)$par
+  }
+  return(boot_params)
+}
+
+# Q3.2
+estimates <- arch_boot(opt$par, 10000)
+errors <- sweep(estimates, 2, opt$par)
+bias2 <- colMeans(errors)
+std_dev_error <- apply(errors, 2, sd)
