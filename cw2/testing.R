@@ -1,5 +1,5 @@
 # Import code given
-source('cw2/CWB2019code.R')
+source('~/StatComp/cw2/CWB2019code.R')
 
 # Q1.1
 negloglike <- function(param, Y) {
@@ -121,7 +121,7 @@ phi_CI <- ilogit(theta_CI)
 # our model using the regular holdout method in Step 3.
 
 # Q4.2
-TMINdata <- read_TMIN_data("cw2/")
+TMINdata <- read_TMIN_data("~/StatComp/cw2/")
 J <- 20
 S_boot_train <- data.frame(SE = numeric(J),
                            DS = numeric(J),
@@ -133,6 +133,25 @@ S_boot_test <- data.frame(SE = numeric(J),
 for (j in 1:J) {
   boot_data <- data_list_resample(TMINdata)
   boot_scores <- cwb4_scores(boot_data, 10)
-  S_boot_train[j,] <- boot_scores[1]
-  S_boot_test[j,] <- boot_scores[3]
+  S_boot_train[j,] <- boot_scores$cvk_mean
+  S_boot_test[j,] <- boot_scores$test
 }
+
+# Q4.3
+S_boot_test_mean <- mean_score(S_boot_test)
+S_boot_train_mean <- mean_score(S_boot_test)
+
+S_boot_train_sd <- lapply(S_boot_train, sd)
+S_boot_test_sd <- lapply(S_boot_test, sd)
+
+# Q4.4
+#S_boot_train_matrix <- data.matrix(S_boot_train)
+#boot_errors <- sweep(S_boot_train_matrix, 3, S_boot_test_mean)
+boot_errors <- data.frame(SE = numeric(J),
+                          DS = numeric(J),
+                          Brier = numeric(J))
+for (j in 1:J) {
+  boot_errors[j, ] <- S_boot_train[j,] - S_boot_test_mean
+}
+boot_bias <- mean_score(boot_errors)
+boot_sd <- apply(boot_errors, 2, sd)
