@@ -1,0 +1,126 @@
+---
+title: Statistical Computing - CWB - 2019
+author: Sharan Maiya (S1608480)
+output:
+  pdf_document:
+    includes:
+      in_header: header.tex
+---
+
+```{r, results='hide', warning=FALSE}
+# Sources, libraries, seed
+source('CWB2019code.R')
+library(tidyverse)
+set.seed(10)
+```
+
+## Question 1
+
+### Task 1
+
+The function `negloglike` shown below takes as input the values $N$, $\theta$, $y_1$ and $y_2$ and outputs $l(N, \theta)$.
+
+```{r, message=FALSE}
+negloglike <- function(param, Y) {
+  if (param[1] < max(Y)) { # If N >= max(y1, y2) then return +Infinity
+    return(+Inf)
+  } else { # Otherwise we calculate the negated log-likelihood
+    return(sum(
+      lgamma(Y+1),
+      lgamma(param[1]-Y+1),
+      -2*lgamma(param[1]+1),
+      2*param[1]*log(1+exp(param[2])),
+      -param[2]*sum(Y)
+    ))
+  }
+}
+```
+
+### Task 2
+
+We seek to use the `optim` function with `negloglike` to find a maximum likelihood estimate of $N$ and $\theta$ (and in turn $\phi$). Since `optim` is a numerical optimiser it is only guaranteed to find a local minima. It therefore makes sense to try `optim` at different sensible starting values to try and find the best MLE we can in a grid search.
+The following parameter values were tried as starting points:
+
+* $N$: We know we must have $N > max(y_1, y_2)$ so we try both $N = max(y_1, y_2) + 1$ and $N = 2max(y_1, y_2)$.
+* $\theta$: Since this is derived from the actual probability $\phi$ we choose sensible values of $\phi$ and convert them to a value of $\theta$ using the `logit` function provided. Since $\phi$ is a probability is makes sense to try starting at the values of 0.01, 0.5 and 0.99.
+
+```{r, message=FALSE}
+Y <- c(256, 237) # Given data
+bestopt <- list(value=+Inf) # Initialise our optimisation
+
+
+# Perform the grid search
+for (N_start in list(max(Y)+1, 2*max(Y))) {
+    for (theta_start in lapply(list(0.01, 0.5, 0.99), logit)) {
+        # Use optim with the current starting values
+        opt <- optim(par = c(N_start, theta_start), fn = negloglike, Y = Y) 
+        if (opt$value < bestopt$value) { # Update if we found a better minima
+            bestopt <- opt
+        }
+    }
+}
+
+# Record MLEs of N and theta
+N_hat <- bestopt$par[1]
+theta_hat <- bestopt$par[2]
+# Obtain MLE of phi
+phi_hat <- ilogit(theta_hat)
+```
+```{r, echo=FALSE}
+knitr::kable(matrix(c(round(N_hat, 2), round(theta_hat, 2), round(phi_hat, 2)), ncol=3, byrow=FALSE),
+             row.names = FALSE,
+             col.names = c("$\\hat N$", "$\\hat \\theta$", "$\\hat \\phi$"),
+             caption="MLEs for $\\hat N$, $\\hat \\theta$ and $\\hat \\phi$")
+```
+
+In Table 1 we see the maximum likelihood estimates for $N$, $\theta$ and consequently $\phi$. This means that in order to maximise the likelihood $p(y|N,\phi)$ we would require there to be around 388 people buried at the site, with a probability 0.64 of finding a femur.
+
+### Task 3
+
+## Question 2
+
+### Task 1
+
+The negated log-likelihood $l(N,\theta)$ is given in the Introduction. 
+\par The first derivative of $\Gamma(x)$ is $\Psi(x) = \Gamma '(x)$ and the second derivative of $\Gamma(x)$ is $\Psi '(x) = \Gamma ''(x)$. The derivatives $\Psi(x)$ and $\Psi ' (x)$ are given respectively in R by the functions \texttt{digamma(x)} and \texttt{trigamma(x)}.
+\par The first partial derivative of $l(N,\theta)$ with respect to $N$ is given by
+$$\frac{\partial l(N,\theta)}{\partial N} 
+= \Psi(N-y_1 + 1) + \Psi(N-y_2 + 1) - 2\Psi(N+1)+2\log(1+e^{\theta}),$$
+and the first partial derivative of $l(N,\theta)$ with respect to $\theta$ is given by
+
+$$\frac{\partial l(N,\theta)}{\partial \theta} 
+= \frac{2Ne^{\theta}}{1+e^{\theta}} - (y_1 + y_2).$$
+\par The second derivatives of $l(N,\theta)$ are given by
+$$
+\begin{aligned}
+\frac{\partial^2l(N,\theta)}{\partial N^2} &=   \Psi'(N-y_1+1) + \Psi'(N-y_2+1) - 2\Psi ' (N+1), \\
+\frac{\partial^2l(N,\theta)}{\partial \theta^2} &=   \frac{2Ne^\theta}{(1+e^\theta)^2}, \text{ and}, \\
+\frac{\partial^2l(N,\theta)}{\partial N \partial \theta} &=   \frac{\partial}{\partial N}\frac{\partial l(N,\theta)}{\partial \theta}=\frac{2e^\theta}{1+e^\theta}.
+\end{aligned}
+$$
+
+### Task 2
+
+### Task 3
+
+### Task 4
+
+## Question 3
+
+### Task 1
+
+### Task 2
+
+### Task 3
+
+## Question 4
+
+### Task 1
+
+### Task 2
+
+### Task 3
+
+### Task 4
+
+## Appendix

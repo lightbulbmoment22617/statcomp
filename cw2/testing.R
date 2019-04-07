@@ -155,3 +155,6 @@ for (j in 1:J) {
 }
 boot_bias <- mean_score(boot_errors)
 boot_sd <- apply(boot_errors, 2, sd)
+
+
+
