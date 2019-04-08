@@ -50,6 +50,20 @@ myhessian <- function(param, Y) {
 
 myhess <- myhessian(opt$par, Y = c(256, 237))
 
+write_matex <- function(x) {
+  begin <- "$$\\begin{bmatrix}"
+  end <- "\\end{bmatrix}$$"
+  X <-
+    apply(x, 1, function(x) {
+      paste(
+        paste(x, collapse = "&"),
+        "\\\\"
+      )
+    })
+  writeLines(c(begin, X, end))
+}
+
+write_matex(myhess)
 # Q2.3
 Y <- c(256, 237)
 L0 <- negloglike(opt$par, Y)

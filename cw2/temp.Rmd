@@ -9,8 +9,8 @@ output:
 
 ```{r, results='hide', warning=FALSE}
 # Sources, libraries, seed
-source('CWB2019code.R')
-library(tidyverse)
+source("CWB2019code.R")
+library(tidyverse);library(xtable)
 set.seed(10)
 ```
 
@@ -26,11 +26,11 @@ negloglike <- function(param, Y) {
     return(+Inf)
   } else { # Otherwise we calculate the negated log-likelihood
     return(sum(
-      lgamma(Y+1),
-      lgamma(param[1]-Y+1),
-      -2*lgamma(param[1]+1),
-      2*param[1]*log(1+exp(param[2])),
-      -param[2]*sum(Y)
+      lgamma(Y + 1),
+      lgamma(param[1] - Y + 1),
+      -2 * lgamma(param[1] + 1),
+      2 * param[1] * log(1 + exp(param[2])),
+      -param[2] * sum(Y)
     ))
   }
 }
@@ -46,18 +46,18 @@ The following parameter values were tried as starting points:
 
 ```{r, message=FALSE}
 Y <- c(256, 237) # Given data
-bestopt <- list(value=+Inf) # Initialise our optimisation
+bestopt <- list(value = +Inf) # Initialise our optimisation
 
 
 # Perform the grid search
-for (N_start in list(max(Y)+1, 2*max(Y))) {
-    for (theta_start in lapply(list(0.01, 0.5, 0.99), logit)) {
-        # Use optim with the current starting values
-        opt <- optim(par = c(N_start, theta_start), fn = negloglike, Y = Y) 
-        if (opt$value < bestopt$value) { # Update if we found a better minima
-            bestopt <- opt
-        }
+for (N_start in list(max(Y) + 1, 2 * max(Y))) {
+  for (theta_start in lapply(list(0.01, 0.5, 0.99), logit)) {
+    # Use optim with the current starting values
+    opt <- optim(par = c(N_start, theta_start), fn = negloglike, Y = Y)
+    if (opt$value < bestopt$value) { # Update if we found a better minima
+      bestopt <- opt
     }
+  }
 }
 
 # Record MLEs of N and theta
@@ -67,39 +67,116 @@ theta_hat <- bestopt$par[2]
 phi_hat <- ilogit(theta_hat)
 ```
 ```{r, echo=FALSE}
-knitr::kable(matrix(c(round(N_hat, 2), round(theta_hat, 2), round(phi_hat, 2)), ncol=3, byrow=FALSE),
-             row.names = FALSE,
-             col.names = c("$\\hat N$", "$\\hat \\theta$", "$\\hat \\phi$"),
-             caption="MLEs for $\\hat N$, $\\hat \\theta$ and $\\hat \\phi$")
+knitr::kable(matrix(c(round(N_hat, 2), round(theta_hat, 2), round(phi_hat, 2)), ncol = 3, byrow = FALSE),
+  row.names = FALSE,
+  col.names = c("$\\hat N$", "$\\hat \\theta$", "$\\hat \\phi$"),
+  caption = "MLEs for $\\hat N$, $\\hat \\theta$ and $\\hat \\phi$"
+)
 ```
 
 In Table 1 we see the maximum likelihood estimates for $N$, $\theta$ and consequently $\phi$. This means that in order to maximise the likelihood $p(y|N,\phi)$ we would require there to be around 388 people buried at the site, with a probability 0.64 of finding a femur.
 
 ### Task 3
 
+We now want to take our values for $\hat N$ and $\hat \theta$ from Table 1 and use `optimHess` to determine a Hessian $\bold H$. The inverse $\bold H^{-1}$ will be a joint covariance matrix we can use to compute a 95% confidence interval for $N$. Here we use Normal approximation.
+
+```{r, echo=FALSE}
+# Obtain Hessian
+hess <- optimHess(bestopt$par, fn = negloglike, Y = Y)
+# Obtain covariance matrix
+covar <- solve(hess)
+
+SE_N <- sqrt(covar[1, 1])
+error <- qnorm(0.975) * SE_N
+lwr <- N_hat - error
+upr <- N_hat + error
+N_CI <- c(lwr, upr)
+```
+```{r, echo=FALSE}
+knitr::kable(matrix(c(round(lwr, 2), round(upr, 2)), ncol = 2, byrow = FALSE),
+  row.names = FALSE,
+  col.names = c("2.5%", "97.5%"),
+  caption = "95% confidence interval for $N$"
+)
+```
+
+Table 2 shows a 95% confidence interval for $N$: we are 95% certain the true value of $N$ lies in this range. It is clear that this interval is not very helpful; the lower bound of -50.28 is well below the bound we had already deduced ($N > max(y_1, y_2)$). In fact, values of $N$ below zero are simply nonsensical as we cannot have a negative number of burials. Our upper bound of 826.85 is also considerably high: consider that even if every bone found belonged to a separate person the excavation would still only have found ~60% of the total number of burials should the true $N$ be near this figure. This seems very unlikely. 
+
 ## Question 2
 
 ### Task 1
 
-The negated log-likelihood $l(N,\theta)$ is given in the Introduction. 
-\par The first derivative of $\Gamma(x)$ is $\Psi(x) = \Gamma '(x)$ and the second derivative of $\Gamma(x)$ is $\Psi '(x) = \Gamma ''(x)$. The derivatives $\Psi(x)$ and $\Psi ' (x)$ are given respectively in R by the functions \texttt{digamma(x)} and \texttt{trigamma(x)}.
-\par The first partial derivative of $l(N,\theta)$ with respect to $N$ is given by
-$$\frac{\partial l(N,\theta)}{\partial N} 
-= \Psi(N-y_1 + 1) + \Psi(N-y_2 + 1) - 2\Psi(N+1)+2\log(1+e^{\theta}),$$
-and the first partial derivative of $l(N,\theta)$ with respect to $\theta$ is given by
+We have that the negated log-likelihood $l(N,\theta)$ is given by:
+$$l(N,\theta) = \log{\Gamma(y_1+1)} + \log{\Gamma(y_2+1)} + \log{\Gamma(N-y_1+1)}  + \log{\Gamma(N-y_2+1)} - 2\log{\Gamma(N+1)} + 2N\log{(1+e^{\theta})} - (y_1+y_2)\theta.$$
+We begin with the first partial derivatives:
+$$\frac{\partial l(N,\theta)}{\partial N} = \Psi(N-y_1 + 1) + \Psi(N-y_2 + 1) - 2\Psi(N+1)+2\log(1+e^{\theta}),$$
+and
+$$\frac{\partial l(N,\theta)}{\partial \theta} = \frac{2Ne^{\theta}}{1+e^{\theta}} - (y_1 + y_2).$$
 
-$$\frac{\partial l(N,\theta)}{\partial \theta} 
-= \frac{2Ne^{\theta}}{1+e^{\theta}} - (y_1 + y_2).$$
-\par The second derivatives of $l(N,\theta)$ are given by
+Now we derive expressions for the second order partial derivatives:
 $$
 \begin{aligned}
 \frac{\partial^2l(N,\theta)}{\partial N^2} &=   \Psi'(N-y_1+1) + \Psi'(N-y_2+1) - 2\Psi ' (N+1), \\
-\frac{\partial^2l(N,\theta)}{\partial \theta^2} &=   \frac{2Ne^\theta}{(1+e^\theta)^2}, \text{ and}, \\
-\frac{\partial^2l(N,\theta)}{\partial N \partial \theta} &=   \frac{\partial}{\partial N}\frac{\partial l(N,\theta)}{\partial \theta}=\frac{2e^\theta}{1+e^\theta}.
+\frac{\partial^2l(N,\theta)}{\partial \theta^2} &=   \frac{2Ne^\theta}{(1+e^\theta)^2}, \text{ and} \\
+\frac{\partial^2l(N,\theta)}{\partial N \partial \theta} &=\frac{2e^\theta}{1+e^\theta}.
 \end{aligned}
 $$
 
 ### Task 2
+
+The function `myhessian` will construct a 2x2 Hessian Matrix for $l(N,\theta)$ using the expressions derived for its second order partial derivatives above. The Hessian matrix will be given by:
+$$\begin{bmatrix}
+    \frac{\partial^2l(N,\theta)}{\partial N^2} & \frac{\partial^2l(N,\theta)}{\partial N \partial \theta} \\
+    \frac{\partial^2l(N,\theta)}{\partial \theta \partial N} & \frac{\partial^2l(N,\theta)}{\partial \theta^2} \\
+\end{bmatrix}$$
+Below is the implementation of `myhessian`:
+
+```{r, message=FALSE}
+myhessian <- function(param, Y) {
+  # Extract parameters
+  N <- param[1]
+  theta <- param[2]
+
+  # Compute second order partial derivatives
+  thetatwo <- 2 * N * exp(theta) / (1 + exp(theta))^2
+  theta_n <- 2 * exp(theta) / (1 + exp(theta))
+  ntwo <- psigamma(N - Y[1] + 1, 1) + psigamma(N - Y[2] + 1, 1) - 2 * psigamma(N + 1, 1)
+
+  # Return Hessian
+  return(matrix(c(ntwo, theta_n, theta_n, thetatwo), nrow = 2, ncol = 2))
+}
+```
+
+Let us now use our MLEs $\hat N$ and $\hat \theta$ to compare the output of `myhessian` and `optimHess`.
+
+```{r, message=FALSE}
+
+# Find hessian using myhessian
+myhess <- myhessian(bestopt$par, Y=Y)
+```
+
+The Hessian matrix $\bold H$ determined by `optimHess` is:
+
+$$\begin{bmatrix}
+    0.008988309 & 1.270193 \\
+    1.270192513 & 179.898086 \\
+\end{bmatrix}$$
+
+The Hessian matrix $\bold H'$ determied by `myhessian` is:
+
+$$\begin{bmatrix}
+    0.008988314 & 1.270193 \\
+    1.270192559 & 179.898109 \\
+\end{bmatrix}$$
+
+The matrix of relative differences between $\bold H$ and $\bold H'$ is:
+
+$$\begin{bmatrix}
+    5.500008\times10^{-9} & 4.574974\times10^{-8} \\
+    4.574974\times10^{-8} & 2.351907\times10^{-5} \\
+\end{bmatrix}$$
+
+We see from the matrix of relative differences that our two computed Hessian matrices are almost identical. Indeed the largest differnt between two computed values is $2.351907\times10^{-5}$ in the value of $\frac{\partial^2l(N,\theta)}{\partial \theta^2}$ and even this is extremely close to zero. The reason the two matrices are not exact is likely due to the fact that in `myhessian` we calculated each value directly from its expression whereas in `optimHess` these are estimated numerically.
 
 ### Task 3
 
