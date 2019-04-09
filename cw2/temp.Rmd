@@ -95,7 +95,7 @@ N_CI <- c(lwr, upr)
 ```{r, echo=FALSE}
 knitr::kable(matrix(c(round(lwr, 3), round(upr, 3)), ncol = 2, byrow = FALSE),
   row.names = FALSE,
-  col.names = c("2.5%", "97.5%"),
+  col.names = c("lower", "upper"),
   caption = "95% confidence interval for $N$"
 )
 ```
@@ -304,7 +304,35 @@ pander(bstd_df, row.names=c("$\\hat N$", "$\\hat \\theta$"), col.names=c("Bias",
 
 The bias of $\hat N$ is `r round(bias[1], 3)`. This is the expected error of $\hat N$ from the true value of $N$. This is a large bias (recall our estimate $\hat N$ was `r round(N_hat, 3)`) and shows that even after our parametric boostrap sampling we are still not very confident of our estimate. This is further evident by the huge standard deviation of this error (`r round(std_dev_error[1], 3)`) which is even larger in magnitude to our 95% confidence interval for $\hat N$. This shows that while we can estimate $N$ using bootstrap sampling we still have a huge margin of error and are unlikely to be near the true value of $N$.
 
+TODO: Plot distribution of errors
+
 ### Task 3
+
+We now construct bootstrap confidence intervals for both $N$ and $\phi$.
+
+```{r, message=FALSE}
+# Copy of boostrap estimates to change scale
+temp <- estimates
+
+# log scale for N
+temp[,1] <- log(temp[,1])
+log_N_CI <- log(N_hat) - quantile(temp[,1] - log(N_hat),
+                                  probs = c(0.975, 0.025))
+# theta scale for phi
+theta_CI <- theta_hat - quantile(temp[,2] - theta_hat,
+                                 probs = c(0.975, 0.025))
+
+# Convert CIs to N and phi
+N_CI_2 <- exp(log_N_CI)
+phi_CI <- ilogit(theta_CI)
+```
+```{r, echo=FALSE}
+pander(data.frame(N_CI_2, phi_CI), col.names=c("$N$", "$\\phi$"), row.names=c("lower", "upper"),
+       caption="95% bootstrap confidence intervals for $N$ and $\\phi$")
+```
+
+Our 95% bootstrap confidence interval for $N$ is (`r round(N_CI_2[1],3)`,`r round(N_CI_2[2],3)`). This is smaller on both ends when compared to our confidence interval from before: (`r round(N_CI[1],3)`,`r round(N_CI[2],3)`). This indicates that parametric bootstrap sampling is more reliable than simply estimating our parameters once; this of course makes sense. We also no longer have the lower end of our confidence interval in impossible values below zero. However our lower bound still does not respect the bound we deduced earlier ($N > max(y_1, y_2) = 256$) from the given data we had which indicates that we still have not found a good way of estimating $N$. It should be noted that our upper bound is now much lower than it was before - a further indication that we are slightly more confident of our results this time. 
+If we impose the lower bound we deduced earlier we can say we are confident the true value of $N$ lies in the interval (256,`r round(N_CI_2[2],3)`). In comparison to before this is a much smaller interval (although its range of `r round(N_CI_2[2],3)-256` is still not small enough to be really helpful) and helps us get a rough idea of where the true value of $N$ lies.
 
 ## Question 4
 
