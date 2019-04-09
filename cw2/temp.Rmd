@@ -78,11 +78,22 @@ In Table 1 we see the maximum likelihood estimates for $N$, $\theta$ and consequ
 
 ### Task 3
 
-We now want to take our values for $\hat N$ and $\hat \theta$ from Table 1 and use `optimHess` to determine a Hessian $\bold H$. The inverse $\bold H^{-1}$ will be a joint covariance matrix we can use to compute a 95% confidence interval for $N$. Here we use Normal approximation.
+We now want to take our values for $\hat N$ and $\hat \theta$ from Table 1 and use `optimHess` to determine a Hessian $\bold H$. 
 
-```{r, echo=FALSE}
-# Obtain Hessian
+```{r, message=FALSE}
 hess <- optimHess(bestopt$par, fn = negloglike, Y = Y)
+```
+
+The Hessian matrix $\bold H$ determined by `optimHess` at the mode ($\hat N$,$\hat \theta$) is:
+
+$$\begin{bmatrix}
+    0.008988309 & 1.270193 \\
+    1.270192513 & 179.898086 \\
+\end{bmatrix}$$
+
+The inverse $\bold H^{-1}$ will be a joint covariance matrix we can use to compute a 95% confidence interval for $N$. Here we use Normal approximation.
+
+```{r, message=FALSE}
 # Obtain covariance matrix
 covar <- solve(hess)
 
@@ -100,7 +111,7 @@ knitr::kable(matrix(c(round(lwr, 3), round(upr, 3)), ncol = 2, byrow = FALSE),
 )
 ```
 
-Table 2 shows a 95% confidence interval for $N$: we are 95% certain the true value of $N$ lies in this range. It is clear that this interval is not very helpful; the lower bound of -50.28 is well below the bound we had already deduced ($N > max(y_1, y_2)$). In fact, values of $N$ below zero are simply nonsensical as we cannot have a negative number of burials. Our upper bound of 826.85 is also considerably high: consider that even if every bone found belonged to a separate person the excavation would still only have found ~60% of the total number of burials should the true $N$ be near this figure. This seems very unlikely. 
+Table 2 shows a 95% confidence interval for $N$: we are 95% confident the true value of $N$ lies in this range. It is clear that this interval is not very helpful; the lower bound of -50.28 is well below the bound we had already deduced ($N > max(y_1, y_2) = 256$). In fact, values of $N$ below zero are simply nonsensical as we cannot have a negative number of burials. Our upper bound of 826.85 is also considerably high: consider that even if every bone found belonged to a separate person the excavation would still only have found ~60% of the total number of burials should the true $N$ be near this figure. This seems very unlikely. 
 
 ## Question 2
 
@@ -155,7 +166,7 @@ Let us now use our MLEs $\hat N$ and $\hat \theta$ to compare the output of `myh
 myhess <- myhessian(bestopt$par, Y=Y)
 ```
 
-The Hessian matrix $\bold H$ determined by `optimHess` is:
+Recall the Hessian matrix $\bold H$ determined by `optimHess` is:
 
 $$\begin{bmatrix}
     0.008988309 & 1.270193 \\
@@ -169,14 +180,14 @@ $$\begin{bmatrix}
     1.270192559 & 179.898109 \\
 \end{bmatrix}$$
 
-The matrix of relative differences between $\bold H$ and $\bold H'$ is:
+The matrix of relative differences between $\bold H$ and $\bold H'$ ($|\bold{H}-\bold{H'}|$) is:
 
 $$\begin{bmatrix}
     5.500008\times10^{-9} & 4.574974\times10^{-8} \\
     4.574974\times10^{-8} & 2.351907\times10^{-5} \\
 \end{bmatrix}$$
 
-We see from the matrix of relative differences that our two computed Hessian matrices are almost identical. Indeed the largest differnt between two computed values is $2.351907\times10^{-5}$ in the value of $\frac{\partial^2l(N,\theta)}{\partial \theta^2}$ and even this is extremely close to zero. The reason the two matrices are not exact is likely due to the fact that in `myhessian` we calculated each value directly from its expression whereas in `optimHess` these are estimated numerically.
+We see from the matrix of relative differences that our two computed Hessian matrices are almost identical. Indeed the largest difference between two computed values is $2.351907\times10^{-5}$ in the value of $\frac{\partial^2l(N,\theta)}{\partial \theta^2}$ and even this is extremely close to zero. The reason the two matrices are not exact is due to the fact that in `myhessian` we calculated each value directly from its expression whereas in `optimHess` these are estimated numerically.
 
 ### Task 3
 
@@ -202,9 +213,7 @@ bound <- e*(4*L0+2*abs(theta_hat)*L1) / h^2
          + (L4*h^2) / 12
 ```
 
-The value of the bound calculated is $`r bound`$. What this number represents is an upper bound on the approximation error due to the numerical method used in `optimHess` when compared to the direct `myhessian`. Recall from above that the relative difference between the two calculated values for $\frac{\partial^2l(N,\theta)}{\partial N^2}$ was $5.500008\times10^{-9}$. This is much smaller than our upper bound which is as expected. It indicates that the numerical method used in `optimHess` is quite powerful.
-
-TODO: Consider effect of machine epsilon on `myhessian` calculated value!
+The value of the bound calculated is $`r bound`$. What this number represents is an upper bound on the approximation error due to the numerical method used in `optimHess` when compared to the direct `myhessian`. Recall from above that the relative difference between the two calculated values for $\frac{\partial^2l(N,\theta)}{\partial N^2}$ was $5.500008\times10^{-9}$. This is much smaller than our upper bound which is as expected. It indicates that the numerical method used in `optimHess` is quite powerful and relatively accurate.
 
 ### Task 4
 
@@ -212,20 +221,21 @@ We now want to compare the computational costs of `optimHess` and `myhessian` us
 
 ```{r, message=FALSE, results="hide"}
 bm <- microbenchmark::microbenchmark(myhessian(bestopt$par, Y = Y),
-                                     optimHess(bestopt$par, fn = negloglike, Y = Y), times=1000L)
+                                     optimHess(bestopt$par, fn = negloglike, Y = Y), 
+                                     times=1000L)
 ```
 ```{r, echo=FALSE}
 pander(bm, caption="Summary of benchmarks for both functions") 
 ```
 
-In Table 3 we see a summary of the results of `microbenchmark`. We see that the mean time of running `myhessian` is ~7.3 milliseconds which is significantly lower than the mean time of ~57 milliseconds required by `optimHess`. Indeed, we see that the upper quantile time given for `myhessian` is under 10 milliseconds while the minimum time for `optimHess` is much higher at ~43 milliseconds. `myhessian` did have some outliers to its trend however as we see its maximum time was around 57 milliseconds - this is close to the average time of `optimHess`. A quick look at Table 3 makes it very clear that `myhessian` in this case performs much better than `optimHess` when it comes to the computational cost. It might be easier to interpret the results if we visualise them. This has been done using the boxplot shown over the page.
+In Table 3 we see a summary of the results of `microbenchmark`. We see that the median time of running `myhessian` is ~6.5 milliseconds which is significantly lower than the median time of ~58 milliseconds required by `optimHess`. Indeed, we see that the upper quantile time given for `myhessian` is under 10 milliseconds while the minimum time for `optimHess` is much higher at ~43 milliseconds. `myhessian` did have some outliers to its trend however as we see its maximum time was around 57 milliseconds - this is close to the average time of `optimHess`. A quick look at Table 3 makes it very clear that `myhessian` in this case performs much better than `optimHess` when it comes to the computational cost. However it might be easier to interpret the results if we visualise them. This has been done using a boxplot.
 
 ```{r, echo=FALSE}
 boxplot(bm, main="Benchmarks for Hessian evaluations", xlab="Function", ylab="Time (log scale)", names=c("myhessian", "optimHess"))
 ```
 
 This boxplot really illustrates that `myhessian` performs a lot better than `optimHess` as we can see the majority of times for `myhessian` are far below the times for `optimHess`. 
-When considering the way the two functions work these results are not surprising. `optimHess` takes as a paramter a function to optimise and carries this out numerically, which for non-trivial functions is sure to take time. `myhessian` on the other hand performs a few simple calculations directly with some input parameters. The algorithm itself is $\mathcal{O}(\Psi') + \mathcal{O}(1)$ which means its runtime is not dependent on how complex the negated log-likelihood function is. 
+When considering the way the two functions work these results are not surprising. `optimHess` takes as a parameter a function to optimise and carries this out numerically, which for non-trivial functions is sure to take time. `myhessian` on the other hand performs a few simple calculations directly with some input parameters as it is written to work with the negated log-likelihood function we are using. The algorithm itself is $\mathcal{O}(\Psi') + \mathcal{O}(1)$ which means its worst-case runtime is not dependent on how complex the negated log-likelihood function is. 
 
 ## Question 3
 
@@ -256,7 +266,7 @@ arch_boot <- function(param, J) {
 
 ### Task 2
 
-We now use `arch_boot` to estimate the bias ($\mathbb{E}({\hat \Theta}-{\Theta_{true}})$)and standard deviations ($\sqrt{Var({\hat \Theta}-{\Theta_{true}})}$) of the estimators for $N$ and $\theta$ using 10000 parametric bootstrap samples. Here we use the Bootstrap Principle which states that the errors of the bootstrapped estimates have the same distribution as the errors of our parameter estimates ($\hat N$,$\hat \theta$). In particular, we have that:
+We now use `arch_boot` to estimate the bias ($\mathbb{E}({\hat \Theta}-{\Theta_{true}})$)and standard deviations ($\sqrt{Var({\hat \Theta}-{\Theta_{true}})}$) of the estimators for $N$ and $\theta$ using 10000 parametric bootstrap samples. Here we use the bootstrap principle which states that the errors of the bootstrapped estimates have the same distribution as the errors of our parameter estimates ($\hat N$,$\hat \theta$). In particular, we have that:
 
 $$
 \begin{aligned}
@@ -304,8 +314,6 @@ pander(bstd_df, row.names=c("$\\hat N$", "$\\hat \\theta$"), col.names=c("Bias",
 
 The bias of $\hat N$ is `r round(bias[1], 3)`. This is the expected error of $\hat N$ from the true value of $N$. This is a large bias (recall our estimate $\hat N$ was `r round(N_hat, 3)`) and shows that even after our parametric boostrap sampling we are still not very confident of our estimate. This is further evident by the huge standard deviation of this error (`r round(std_dev_error[1], 3)`) which is even larger in magnitude to our 95% confidence interval for $\hat N$. This shows that while we can estimate $N$ using bootstrap sampling we still have a huge margin of error and are unlikely to be near the true value of $N$.
 
-TODO: Plot distribution of errors
-
 ### Task 3
 
 We now construct bootstrap confidence intervals for both $N$ and $\phi$.
@@ -338,33 +346,7 @@ If we impose the lower bound we deduced earlier we can say we are confident the 
 
 ### Task 1
 
-For reference, the code for `cwb4_scores` is shown below:
-
-```{r, message=FALSE}
-# cwb4_scores: Function for Coursework B Question 4.
-
-cwb4_scores <- function(data_list, K) {
-  # Step 1:
-  the_splits <- cvk_define_splits(nrow(data_list$train), K)
-  # Step 2:
-  scores_cvk <- cvk_do_all(data_list$train,
-                           the_splits,
-                           make_formula(2))
-  # Step 3:
-  scores_test <-
-    mean_score(
-      train_and_validate(train = data_list$train,
-                         valid = data_list$test,
-                         formula = make_formula(2)),
-      by.ID = FALSE)[c("SE", "DS", "Brier")]
-  # Step 4:
-  list(cvk_mean = colMeans(scores_cvk),
-       cvk_std_err = apply(scores_cvk, 2, sd) / sqrt(K),
-       test = scores_test)
-}
-```
-
-What this function does is allow us to compare the means and standard deviations from cross-validated scores with the mean scores from performing regular training and testing with a holdout test set. Let us step through the function:
+What the function `cwb4_scores` does is allow us to compare the means and standard deviations from cross-validated scores with the mean scores from performing regular training and testing with a holdout test set. Let us step through the function:
 
 $\textit{Step 1:}$ In k-fold cross-validation we randomly split our data into k subsets of size $\approx \frac{N}{k}$. Here we generate indices to define this random splitting of our training data into `K` subsets.
 
@@ -376,8 +358,120 @@ $\textit{Step 4:}$ Here we return a summary of all the results. This is a list o
 
 ### Task 2
 
+We want to analyse the cross-validation procedures using bootstrap resampling. We begin by generating 20 bootstrap samples of the scores (SE, DS and Brier) using `cwb4_scores` for `K` = 10.
+
+```{r, message=FALSE}
+# Read in the temperature data 
+TMINdata <- read_TMIN_data()
+
+# Initialise variables
+J <- 20
+K <- 10
+S_boot_train <- data.frame(SE = numeric(J),
+                           DS = numeric(J),
+                           Brier = numeric(J))
+S_boot_test <- data.frame(SE = numeric(J),
+                          DS = numeric(J),
+                          Brier = numeric(J))
+
+# Obtain scores through bootstrap resampling
+for (j in 1:J) {
+  # Resample
+  boot_data <- data_list_resample(TMINdata)
+  # Get scores
+  boot_scores <- cwb4_scores(boot_data, K)
+  # Store scores
+  S_boot_train[j,] <- boot_scores$cvk_mean
+  S_boot_test[j,] <- boot_scores$test
+}
+```
+
+```{r, echo=FALSE}
+pander(head(S_boot_train), caption="S_boot_train")
+pander(head(S_boot_test), caption="S_boot_test")
+```
+
+Above we see the first few elements of the resulting scores. `S_boot_train` stores the cross-validated scores while `S_boot_test` stores the scores from the holdout method.
+
 ### Task 3
+
+We now calculate the means and standard deviations for the scores in `S_boot_train` and `S_boot_test`.
+```{r, message=FALSE}
+S_boot_train_mean <- mean_score(S_boot_train)
+S_boot_test_mean <- mean_score(S_boot_test)
+
+S_boot_train_sd <- lapply(S_boot_train, sd)
+S_boot_test_sd <- lapply(S_boot_test, sd)
+```
+
+```{r, echo=FALSE}
+df <- data.frame(SE = numeric(2),
+                          DS = numeric(2),
+                          Brier = numeric(2))
+
+df[1, ] <- S_boot_train_mean
+df[2, ] <- S_boot_train_sd
+pander(df, row.names=c("Mean", "Standard Deviation"), caption="Sample means and standard deviations for training data")
+df <- data.frame(SE = numeric(2),
+                          DS = numeric(2),
+                          Brier = numeric(2))
+
+df[1, ] <- S_boot_test_mean
+df[2, ] <- S_boot_test_sd
+pander(df, row.names=c("Mean", "Standard Deviation"), caption="Sample means and standard deviations for testing data")
+```
+
+We see the sample means and standard deviations for both the training and testing data in Table 9 and Table 10 respectively. As expected we see that the mean scores from both the training (cross-validated) data and testing (holdout) data are very close. The more interesting results are the standard deviations as we see they are much lower on all three scores in the training data. This makes sense as we have carried out cross-validation which in general gives us more stable results.
 
 ### Task 4
 
-## Appendix
+We want to estimate the bias $\mathbb{E}(\hat S_0^{train(K)}-S^{test})$. By the bootstrap principle this will be equal to $\mathbb{E}(S^{test}-S^{general})$ i.e how close our estimated score is to the model's true score on all temperature data of this kind. The standard deviation of $\hat S_0^{train(K)}$ has an analogous meaning with regards to the performance of the model on all temperature data of this kind by using the bootstrap principle. The calculations and results are shown below.
+
+```{r, message=FALSE}
+# Dataframe to store differences
+boot_errors <- data.frame(SE = numeric(J),
+                          DS = numeric(J),
+                          Brier = numeric(J))
+for (j in 1:J) {
+  boot_errors[j, ] <- S_boot_train[j,] - S_boot_test_mean
+}
+
+# Bias
+boot_bias <- mean_score(boot_errors)
+# Standard deviation
+boot_sd <- apply(boot_errors, 2, sd)
+```
+```{r, echo=FALSE}
+df <- data.frame(SE = numeric(2),
+                          DS = numeric(2),
+                          Brier = numeric(2))
+
+df[1, ] <- boot_bias
+df[2, ] <- boot_sd
+pander(df, row.names=c("Mean", "Standard Deviation"), caption="Bias and Standard Deviation")
+df <- data.frame(SE = numeric(2),
+                          DS = numeric(2),
+                          Brier = numeric(2))
+```
+
+We wee that both the biases and standard deviations are very close to zero, indicating that the cross-validated scores and testing scores are generally very close together (as would be the case with new unseen data due to the bootstrap principle as explained above). All the values are generally close in terms of order of magnitude, meaning neither the bias nor the standard deviation dominates score estimates.
+
+However if we apply our models to the original data we were given (`TMINdata`) we see something odd:
+
+```{r, message=FALSE}
+original <- cwb4_scores(TMINdata, 10)
+```
+```{r, echo=FALSE}
+df <- data.frame(SE = numeric(2),
+                 DS = numeric(2),
+                 Brier = numeric(2))
+
+df[1, ] <- original$cvk_mean
+df[2, ] <- original$cvk_std_err
+df[3, ] <- original$test
+pander(df, row.names=c("CV: mean", "CV: std. deviation", "Holdout"), caption="Comparison of CV and Holdout methods on original data")
+```
+
+Here in Table 12 we see that our cross-validated model performs worse than the model trained on the entire training data. We can see this since all three mean scores using the holdout method are lower than the their counterparts using the cross-validated model. The biases are all very close to zero and hence cannot explain this result. In addition, the standard deviations are all around an order of magnitude lower than they should have been in order to explain what has happened here.
+
+If we look at our sample means from Task 3 we see they are around 10.01, 3.3 and 0.117 for the SE, DS and Brier scores respectively. These scores were obtained using bootstrap resampling. We also see that our cross-validated scores on the original data are all very close to these figures while the holdout scores are all lower. This is perhaps an indication that in this case our testing data was particularly 'nice' allowing the model to make better predictions and achieve better scores (since when performing cross-validation using `cwb4_scores` we do not touch the testing data at all). This seems more likely than the case that cross-validation is actually hurting our performance as it is a widely used technique for which it is common knowledge that it produces more robust results than a regular method using a single training and testing split.   

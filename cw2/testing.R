@@ -36,34 +36,20 @@ N_CI <- c(lwr, upr)
 
 # Q2.2
 myhessian <- function(param, Y) {
+  # Extract parameters
   N <- param[1]
   theta <- param[2]
-  thetatwo <- 2*N*exp(theta)/(1+exp(theta))^2
-  theta_n <- 2*exp(theta)/(1+exp(theta))
-  ntwo <- (psigamma(N-Y[1]+1, 1)*gamma(N-Y[1]+1)-(digamma(N-Y[1]+1))^2) / (gamma(N-Y[1]+1))^2
-          +
-          (psigamma(N-Y[2]+1, 1)*gamma(N-Y[2]+1)-(digamma(N-Y[2]+1))^2) / (gamma(N-Y[2]+1))^2
-          -
-          2*(psigamma(N+1, 1)*gamma(N+1)-(digamma(N+1))^2) / (gamma(N+1))^2
-  return(matrix(c(ntwo, theta_n, theta_n, thetatwo),nrow=2, ncol=2))
+  
+  # Compute second order partial derivatives
+  thetatwo <- 2 * N * exp(theta) / (1 + exp(theta))^2
+  theta_n <- 2 * exp(theta) / (1 + exp(theta))
+  ntwo <- psigamma(N - Y[1] + 1, 1) + psigamma(N - Y[2] + 1, 1) - 2 * psigamma(N + 1, 1)
+  
+  # Return Hessian
+  return(matrix(c(ntwo, theta_n, theta_n, thetatwo), nrow = 2, ncol = 2))
 }
 
 myhess <- myhessian(opt$par, Y = c(256, 237))
-
-write_matex <- function(x) {
-  begin <- "$$\\begin{bmatrix}"
-  end <- "\\end{bmatrix}$$"
-  X <-
-    apply(x, 1, function(x) {
-      paste(
-        paste(x, collapse = "&"),
-        "\\\\"
-      )
-    })
-  writeLines(c(begin, X, end))
-}
-
-write_matex(myhess)
 # Q2.3
 Y <- c(256, 237)
 L0 <- negloglike(opt$par, Y)
@@ -152,8 +138,8 @@ for (j in 1:J) {
 }
 
 # Q4.3
+S_boot_train_mean <- mean_score(S_boot_train)
 S_boot_test_mean <- mean_score(S_boot_test)
-S_boot_train_mean <- mean_score(S_boot_test)
 
 S_boot_train_sd <- lapply(S_boot_train, sd)
 S_boot_test_sd <- lapply(S_boot_test, sd)
@@ -169,6 +155,18 @@ for (j in 1:J) {
 }
 boot_bias <- mean_score(boot_errors)
 boot_sd <- apply(boot_errors, 2, sd)
+print(boot_bias)
+print(boot-sd)
 
+df <- data.frame()
+df[1] <- S_boot_train_mean[c(1,2,3)]
+df[2] <- S_boot_train_sd[c(1,2,3)]
+
+df <- data.frame(SE = numeric(2),
+                          DS = numeric(2),
+                          Brier = numeric(2))
+
+df[1, ] <- S_boot_train_mean
+df[2, ] <- S_boot_train_sd
 
 
