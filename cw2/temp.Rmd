@@ -231,6 +231,29 @@ When considering the way the two functions work these results are not surprising
 
 ### Task 1
 
+The function `arch_boot` below takes as input parameters $N$ and $\theta$ as well as a positive integer $J$ and produces $J$ parametric bootstrap samples of parameter estimates $\hat N$ and $\hat \theta$. Recall that in our model the number of left ($y_1$) and right ($y_2$) femurs are two independent observations from a $Bin(N,\phi)$ distribution. We will use this to generate our bootstrap samples.
+
+```{r, message=FALSE}
+arch_boot <- function(param, J) {
+  boot_params <- matrix(0, J,2) # Initialise matrix to return
+  
+  # Parameters of the binomial distribution
+  N <- floor(param[1])
+  phi <- ilogit(param[2])
+  
+  for (j in 1:J) {
+    Y_j <- rbinom(2, N, phi) # Bootstrap sample
+    
+    # Estimate parameters
+    boot_params[j, ] <- optim(
+      par = c(2*max(Y_j), 0),
+      fn = negloglike,
+      Y = Y_j)$par
+  }
+  return(boot_params)
+}
+```
+
 ### Task 2
 
 ### Task 3
