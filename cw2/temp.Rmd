@@ -338,6 +338,42 @@ If we impose the lower bound we deduced earlier we can say we are confident the 
 
 ### Task 1
 
+For reference, the code for `cwb4_scores` is shown below:
+
+```{r, message=FALSE}
+# cwb4_scores: Function for Coursework B Question 4.
+
+cwb4_scores <- function(data_list, K) {
+  # Step 1:
+  the_splits <- cvk_define_splits(nrow(data_list$train), K)
+  # Step 2:
+  scores_cvk <- cvk_do_all(data_list$train,
+                           the_splits,
+                           make_formula(2))
+  # Step 3:
+  scores_test <-
+    mean_score(
+      train_and_validate(train = data_list$train,
+                         valid = data_list$test,
+                         formula = make_formula(2)),
+      by.ID = FALSE)[c("SE", "DS", "Brier")]
+  # Step 4:
+  list(cvk_mean = colMeans(scores_cvk),
+       cvk_std_err = apply(scores_cvk, 2, sd) / sqrt(K),
+       test = scores_test)
+}
+```
+
+What this function does is allow us to compare the means and standard deviations from cross-validated scores with the mean scores from performing regular training and testing with a holdout test set. Let us step through the function:
+
+$\textit{Step 1:}$ In k-fold cross-validation we randomly split our data into k subsets of size $\approx \frac{N}{k}$. Here we generate indices to define this random splitting of our training data into `K` subsets.
+
+$\textit{Step 2:}$ Here we perform k-fold cross-validation on our training data by choosing each of our `K` subsets (as defined in $\textit{Step 1}$), training a model on the rest of the data and evaluating its performance on this subset. Once we have done this with each of our `K` subsets we return the `K` sets of scores we have obtained (each set consists of an SE, DS and Brier score of the current model on subset `K`). The model we use tries to express the temperature as a linear function of longtitude, latitude, elevation and the time of year (using a truncated Fourier Series of order two).
+
+$\textit{Step 3:}$ Here we use the same model as in $\textit{Step 2}$: train our model on the entire training dataset and evaluate its performance on the testing set by taking the SE, DS and Brier scores. The key difference here is that we have not performed k-fold cross-validation: we have trained and tested our model using a holdout test set as well as our original training data in its entirety.
+
+$\textit{Step 4:}$ Here we return a summary of all the results. This is a list of the combined cross-validation scores for each of the three scoring rules we have used, the standard errors for the cross-validated scores and finally the scores we obtained when training and testing our model using the regular holdout method in $\textit{Step 3}$.
+
 ### Task 2
 
 ### Task 3
