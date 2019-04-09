@@ -67,7 +67,7 @@ theta_hat <- bestopt$par[2]
 phi_hat <- ilogit(theta_hat)
 ```
 ```{r, echo=FALSE}
-knitr::kable(matrix(c(round(N_hat, 2), round(theta_hat, 2), round(phi_hat, 2)), ncol = 3, byrow = FALSE),
+knitr::kable(matrix(c(round(N_hat, 3), round(theta_hat, 3), round(phi_hat, 3)), ncol = 3, byrow = FALSE),
   row.names = FALSE,
   col.names = c("$\\hat N$", "$\\hat \\theta$", "$\\hat \\phi$"),
   caption = "MLEs for $\\hat N$, $\\hat \\theta$ and $\\hat \\phi$"
@@ -93,7 +93,7 @@ upr <- N_hat + error
 N_CI <- c(lwr, upr)
 ```
 ```{r, echo=FALSE}
-knitr::kable(matrix(c(round(lwr, 2), round(upr, 2)), ncol = 2, byrow = FALSE),
+knitr::kable(matrix(c(round(lwr, 3), round(upr, 3)), ncol = 2, byrow = FALSE),
   row.names = FALSE,
   col.names = c("2.5%", "97.5%"),
   caption = "95% confidence interval for $N$"
@@ -117,7 +117,7 @@ Now we derive expressions for the second order partial derivatives:
 $$
 \begin{aligned}
 \frac{\partial^2l(N,\theta)}{\partial N^2} &=   \Psi'(N-y_1+1) + \Psi'(N-y_2+1) - 2\Psi ' (N+1), \\
-\frac{\partial^2l(N,\theta)}{\partial \theta^2} &=   \frac{2Ne^\theta}{(1+e^\theta)^2}, \text{ and} \\
+\frac{\partial^2l(N,\theta)}{\partial \theta^2} &=   \frac{2Ne^\theta}{(1+e^\theta)^2} \text{ and} \\
 \frac{\partial^2l(N,\theta)}{\partial N \partial \theta} &=\frac{2e^\theta}{1+e^\theta}.
 \end{aligned}
 $$
@@ -255,6 +255,54 @@ arch_boot <- function(param, J) {
 ```
 
 ### Task 2
+
+We now use `arch_boot` to estimate the bias ($\mathbb{E}({\hat \Theta}-{\Theta_{true}})$)and standard deviations ($\sqrt{Var({\hat \Theta}-{\Theta_{true}})}$) of the estimators for $N$ and $\theta$ using 10000 parametric bootstrap samples. Here we use the Bootstrap Principle which states that the errors of the bootstrapped estimates have the same distribution as the errors of our parameter estimates ($\hat N$,$\hat \theta$). In particular, we have that:
+
+$$
+\begin{aligned}
+\mathbb{E}({\hat N}-{N_{true}}) = \mathbb{E}({\hat N^{(j)}}-{\hat N}), \\
+\end{aligned}
+$$
+$$
+\begin{aligned}
+\mathbb{E}({\hat \theta}-{\theta_{true}}) = \mathbb{E}({\hat \theta^{(j)}}-{\hat \theta}) \\
+\end{aligned}
+$$
+$$
+\begin{aligned}
+\text{and} \\
+\end{aligned}
+$$
+$$
+\begin{aligned}
+\sqrt{Var({\hat N}-{N_{true}})} = \sqrt{Var({\hat N^{(j)}}-{\hat N})}, \\
+\end{aligned}
+$$
+$$
+\begin{aligned}
+\sqrt{Var({\hat \theta}-{\theta_{true}})} = \sqrt{Var({\hat \theta^{(j)}}-{\hat \theta})}.
+\end{aligned}
+$$
+
+This allows us to estimate the bias and standard deviation as follows:
+
+```{r, message=FALSE}
+# Generate 10000 parametric boostrap estimates
+estimates <- arch_boot(bestopt$par, 10000)
+
+errors <- sweep(estimates, 2, bestopt$par)
+bias <- colMeans(errors)
+std_dev_error <- apply(errors, 2, sd)
+bstd_df <- data.frame(bias, std_dev_error)
+
+```
+
+```{r, echo=FALSE}
+pander(bstd_df, row.names=c("$\\hat N$", "$\\hat \\theta$"), col.names=c("Bias", "Standard Deviation"),
+       caption="Estimated bias and standard deviation of estimators")
+```
+
+The bias of $\hat N$ is `r round(bias[1], 3)`. This is the expected error of $\hat N$ from the true value of $N$. This is a large bias (recall our estimate $\hat N$ was `r round(N_hat, 3)`) and shows that even after our parametric boostrap sampling we are still not very confident of our estimate. This is further evident by the huge standard deviation of this error (`r round(std_dev_error[1], 3)`) which is even larger in magnitude to our 95% confidence interval for $\hat N$. This shows that while we can estimate $N$ using bootstrap sampling we still have a huge margin of error and are unlikely to be near the true value of $N$.
 
 ### Task 3
 
