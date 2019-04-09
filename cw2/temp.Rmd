@@ -10,7 +10,7 @@ output:
 ```{r, results='hide', warning=FALSE}
 # Sources, libraries, seed
 source("CWB2019code.R")
-library(tidyverse);library(xtable)
+library(tidyverse);library(xtable);library(pander);library(ggplot2)
 set.seed(10)
 ```
 
@@ -180,7 +180,52 @@ We see from the matrix of relative differences that our two computed Hessian mat
 
 ### Task 3
 
+In Lecture 5 we learned that 2nd order differences for $f''(\theta)$ using $f(\theta-h)$, $f(\theta+h)$ and $f(\theta)$ give the bound $\lesssim \frac{\epsilon_0(4L_0+2|\theta|L_1)}{h^2}+\frac{h^2L_4}{12}$. We want to compare the two Hessian evaluations of $\frac{\partial^2l(N,\theta)}{\partial N^2}$ with this bound so let us first calculate it at the mode ($\hat N$,$\hat \theta$).
+
+```{r, message=FALSE, results="hide"}
+L0 <- negloglike(opt$par, Y) # L0 calculated using the negated log likelihood
+
+L1 <- digamma(N_hat-Y[1]+1)  
+    + digamma(N_hat-Y[2]+1) 
+    - 2*digamma(N_hat+1) 
+    + 2*log(1+exp(theta_hat))
+
+# L4 calculated using code given in question
+L4 <- abs(sum(psigamma(N_hat-Y+1,3)) - 2*psigamma(N_hat+1,3)) 
+
+# Machine epsilon (upper bound on relative error due to rounding in FPA)
+e <- .Machine$double.eps 
+h <- 0.0001 # Step size (given in question)
+
+# Calculating the bound using the formula above this code block
+bound <- e*(4*L0+2*abs(theta_hat)*L1) / h^2
+         + (L4*h^2) / 12
+```
+
+The value of the bound calculated is $`r bound`$. What this number represents is an upper bound on the approximation error due to the numerical method used in `optimHess` when compared to the direct `myhessian`. Recall from above that the relative difference between the two calculated values for $\frac{\partial^2l(N,\theta)}{\partial N^2}$ was $5.500008\times10^{-9}$. This is much smaller than our upper bound which is as expected. It indicates that the numerical method used in `optimHess` is quite powerful.
+
+TODO: Consider effect of machine epsilon on `myhessian` calculated value!
+
 ### Task 4
+
+We now want to compare the computational costs of `optimHess` and `myhessian` using the `microbenchmark` function. This was run an order of magnitude more times than the default in order to provide more stable results.
+
+```{r, message=FALSE, results="hide"}
+bm <- microbenchmark::microbenchmark(myhessian(bestopt$par, Y = Y),
+                                     optimHess(bestopt$par, fn = negloglike, Y = Y), times=1000L)
+```
+```{r, echo=FALSE}
+pander(bm, caption="Summary of benchmarks for both functions") 
+```
+
+In Table 3 we see a summary of the results of `microbenchmark`. We see that the mean time of running `myhessian` is ~7.3 milliseconds which is significantly lower than the mean time of ~57 milliseconds required by `optimHess`. Indeed, we see that the upper quantile time given for `myhessian` is under 10 milliseconds while the minimum time for `optimHess` is much higher at ~43 milliseconds. `myhessian` did have some outliers to its trend however as we see its maximum time was around 57 milliseconds - this is close to the average time of `optimHess`. A quick look at Table 3 makes it very clear that `myhessian` in this case performs much better than `optimHess` when it comes to the computational cost. It might be easier to interpret the results if we visualise them. This has been done using the boxplot shown over the page.
+
+```{r, echo=FALSE}
+boxplot(bm, main="Benchmarks for Hessian evaluations", xlab="Function", ylab="Time (log scale)", names=c("myhessian", "optimHess"))
+```
+
+This boxplot really illustrates that `myhessian` performs a lot better than `optimHess` as we can see the majority of times for `myhessian` are far below the times for `optimHess`. 
+When considering the way the two functions work these results are not surprising. `optimHess` takes as a paramter a function to optimise and carries this out numerically, which for non-trivial functions is sure to take time. `myhessian` on the other hand performs a few simple calculations directly with some input parameters. The algorithm itself is $\mathcal{O}(\Psi') + \mathcal{O}(1)$ which means its runtime is not dependent on how complex the negated log-likelihood function is. 
 
 ## Question 3
 
